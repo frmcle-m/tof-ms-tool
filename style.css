@@ -109,6 +109,69 @@ main {
   border-radius: 5px;
   font-size: 0.85rem;
 }
+.btn-settings {
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  align-self: center;
+  white-space: nowrap;
+}
+
+/* 「4. グラフを描画する」欄の「⚙ 表示設定」パネル。グラフサイズの隣にある
+   歯車ボタンで表示/非表示を切り替える、色・線の太さ・凡例配置の設定欄。 */
+.graph-settings-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  align-items: flex-start;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fafbfc;
+  padding: 14px 16px;
+  margin: 4px 0 12px;
+}
+.graph-settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  max-width: 280px;
+}
+.graph-settings-row label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.graph-settings-row label.chk {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+.graph-settings-row input[type="number"],
+.graph-settings-row select {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 0.85rem;
+}
+.graph-settings-row input[type="color"] {
+  width: 60px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: none;
+  cursor: pointer;
+}
+.graph-settings-row input[type="color"]:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.graph-settings-row .field-hint {
+  grid-column: unset;
+  margin: 0;
+  font-size: 0.74rem;
+}
 
 .date-tabs {
   display: flex;

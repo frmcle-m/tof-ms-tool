@@ -90,9 +90,39 @@
       <div class="graph-size-control">
         <label>幅 (px)<input type="number" id="graphWidth" value="900" min="300" step="50"></label>
         <label>高さ (px)<input type="number" id="graphHeight" value="450" min="200" step="50"></label>
+        <button class="btn btn-ghost btn-settings" id="btnGraphSettings" type="button" title="グラフの色・線の太さ・凡例の位置を設定します">⚙ 表示設定</button>
       </div>
     </div>
-    <p class="hint">ここで設定した幅・高さで各グラフを描画・PNG保存します。ファイル名が幅より長くなる場合は自動で改行されます。</p>
+    <div id="graphSettingsPanel" class="graph-settings-panel hidden">
+      <div class="graph-settings-row">
+        <label class="chk"><input type="checkbox" id="graphLineColorEnable"> データ線の色を指定する</label>
+        <input type="color" id="graphLineColor" value="#4682b4" disabled>
+        <span class="field-hint">オフの場合は各グラフの既定色（青・クリムゾンなど）のまま表示します。オンにすると、1本の線だけのグラフ（TOFスペクトル・質量スペクトル・差分など）にこの色を使います。</span>
+      </div>
+      <div class="graph-settings-row">
+        <label>カラーパレット（複数の線があるグラフ用）
+          <select id="graphColorPalette">
+            <option value="default">既定（これまでの配色）</option>
+            <option value="category10">Category10</option>
+            <option value="set1">Set1</option>
+            <option value="set2">Set2</option>
+            <option value="pastel">Pastel</option>
+            <option value="blues">モノトーン（青系）</option>
+          </select>
+        </label>
+        <span class="field-hint">差分（Signal/BG）や複数ファイル重ね書きなど、1つのグラフに複数の線がある場合の配色です。「既定」以外を選ぶとその配色で塗り分けます。</span>
+      </div>
+      <div class="graph-settings-row">
+        <label>線の太さ (px)
+          <input type="number" id="graphLineWidth" value="1" min="0.5" max="10" step="0.5">
+        </label>
+      </div>
+      <div class="graph-settings-row">
+        <label class="chk"><input type="checkbox" id="graphLegendInset"> 凡例をグラフ内に表示する（inset）</label>
+        <span class="field-hint">オフの場合は現在と同じくグラフの外側（右）に凡例を表示します。</span>
+      </div>
+    </div>
+    <p class="hint">ここで設定した幅・高さで各グラフを描画・PNG保存します。ファイル名が幅より長くなる場合は自動で改行されます。「⚙ 表示設定」から色・線の太さ・凡例の位置も変更できます。</p>
 
     <div class="tabs" id="graphTabs">
       <button class="tab-btn active" data-tab="tab-raw">TOFスペクトル</button>

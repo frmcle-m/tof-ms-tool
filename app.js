@@ -732,6 +732,45 @@ if (typeof document !== 'undefined') {
     return { w, h };
   }
 
+  // 「⚙ 表示設定」パネルで選べるカラーパレット（1つのグラフに複数の線がある場合の配色）。
+  // 「既定」(default) を選んだ場合は null を返し、これまで通りの固定色（各グラフごとの
+  // steelblue/tomato/redなど）をそのまま使う。他のパレットを選んだ場合のみ、配列の色を
+  // 順番に割り当てて上書きする。
+  const COLOR_PALETTES = {
+    default: null,
+    category10: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'],
+    set1: ['#e41a1c', '#377eb8', '#4daf4a', '#984ea3', '#ff7f00', '#a65628', '#f781bf', '#999999'],
+    set2: ['#66c2a5', '#fc8d62', '#8da0cb', '#e78ac3', '#a6d854', '#ffd92f', '#e5c494', '#b3b3b3'],
+    pastel: ['#fbb4ae', '#b3cde3', '#ccebc5', '#decbe4', '#fed9a6', '#e5d8bd', '#fddaec'],
+    blues: ['#08306b', '#2171b5', '#4292c6', '#6baed6', '#9ecae1', '#c6dbef'],
+  };
+
+  // 「⚙ 表示設定」パネルの現在の値（データ線の色・カラーパレット・線の太さ・凡例のグラフ内表示）を取得する。
+  // 「データ線の色を指定する」がオフの場合、colorはnullを返し、各グラフはこれまで通りの
+  // 既定色（steelblue/crimsonなど）をそのまま使う。各入力欄が存在しない場合（読み込み順の
+  // 都合など）も、これまでの見た目と同じ既定値を返す。
+  function getGraphStyle() {
+    const enableEl = document.getElementById('graphLineColorEnable');
+    const colorEl = document.getElementById('graphLineColor');
+    const paletteEl = document.getElementById('graphColorPalette');
+    const widthEl = document.getElementById('graphLineWidth');
+    const legendInsetEl = document.getElementById('graphLegendInset');
+    const colorEnabled = enableEl ? enableEl.checked : false;
+    return {
+      color: colorEnabled && colorEl ? colorEl.value : null,
+      palette: paletteEl ? COLOR_PALETTES[paletteEl.value] : null,
+      lineWidth: widthEl ? (parseFloat(widthEl.value) || 1) : 1,
+      legendInset: legendInsetEl ? legendInsetEl.checked : false,
+    };
+  }
+
+  // 1つのグラフに複数の線がある場合の色を決める。パレットが選択されていればその配列から
+  // index番目の色を順に割り当て、「既定」パレットの場合はこれまで通り固定色(fallback)を使う。
+  function pickColor(palette, index, fallback) {
+    if (palette && palette.length) return palette[index % palette.length];
+    return fallback;
+  }
+
   // カンマ区切りの長いリスト（ファイル名など）を、指定した1行あたりの文字数を超えないよう
   // カンマの区切りごとに改行(<br>)を挿入する。ファイル名の途中では改行しない。
   function wrapCommaList(text, maxCharsPerLine) {
@@ -771,12 +810,21 @@ if (typeof document !== 'undefined') {
     return String(s).replace(/[^a-zA-Z0-9_\-]+/g, '_');
   }
 
-  // 凡例(レジェンド)をグラフの外・右側に配置し、ファイル数が多くても凡例が
-  // グラフ内に収まりきらず切れてしまう(inset状態で見えなくなる)のを防ぐ
+  // 凡例(レジェンド)の配置。「⚙ 表示設定」で「凡例をグラフ内に表示(inset)」がオフの場合は
+  // 従来通りグラフの外・右側に配置し、ファイル数が多くても凡例がグラフ内に収まりきらず
+  // 切れてしまうのを防ぐ。オンの場合はグラフ内側（右上）に重ねて表示する。
   function applyLegendLayout(layout) {
-    if (!layout.margin) layout.margin = {};
-    layout.margin.r = Math.max(layout.margin.r || 0, 160);
-    layout.legend = { x: 1.02, xanchor: 'left', y: 1, yanchor: 'top', font: { size: 10 } };
+    const { legendInset } = getGraphStyle();
+    if (legendInset) {
+      layout.legend = {
+        x: 0.99, xanchor: 'right', y: 0.99, yanchor: 'top', font: { size: 10 },
+        bgcolor: 'rgba(255,255,255,0.75)', bordercolor: '#dcdfe4', borderwidth: 1,
+      };
+    } else {
+      if (!layout.margin) layout.margin = {};
+      layout.margin.r = Math.max(layout.margin.r || 0, 160);
+      layout.legend = { x: 1.02, xanchor: 'left', y: 1, yanchor: 'top', font: { size: 10 } };
+    }
   }
 
   // 「4. グラフを描画する」欄で指定された幅・高さを、指定した各プロットのコンテナに反映する
@@ -821,6 +869,25 @@ if (typeof document !== 'undefined') {
       document.getElementById(btn.dataset.tab).classList.add('active');
     });
   });
+
+  /* ---------- 5b. グラフの「⚙ 表示設定」パネル ----------
+     グラフサイズ入力の隣にある歯車ボタンで、色・線の太さ・凡例配置などの
+     パネルの表示/非表示を切り替える。設定値は各グラフを「表示」ボタンで
+     描画する際に読み込まれる（グラフサイズと同じ扱い）。 */
+  const btnGraphSettings = document.getElementById('btnGraphSettings');
+  const graphSettingsPanel = document.getElementById('graphSettingsPanel');
+  if (btnGraphSettings && graphSettingsPanel) {
+    btnGraphSettings.addEventListener('click', () => {
+      graphSettingsPanel.classList.toggle('hidden');
+    });
+  }
+  const graphLineColorEnable = document.getElementById('graphLineColorEnable');
+  const graphLineColor = document.getElementById('graphLineColor');
+  if (graphLineColorEnable && graphLineColor) {
+    const syncColorEnabled = () => { graphLineColor.disabled = !graphLineColorEnable.checked; };
+    graphLineColorEnable.addEventListener('change', syncColorEnabled);
+    syncColorEnabled();
+  }
 
   /* ---------- 6. ファイル入力まわりの配線 ---------- */
 
@@ -905,7 +972,8 @@ if (typeof document !== 'undefined') {
 
     applyGraphSize(['plotRaw']);
 
-    const trace = { x: csv.time_ns, y: csv.counts, type: 'scattergl', mode: 'lines', line: { width: 1, color: 'steelblue' }, name: stem };
+    const { color: lineColor, lineWidth } = getGraphStyle();
+    const trace = { x: csv.time_ns, y: csv.counts, type: 'scattergl', mode: 'lines', line: { width: lineWidth, color: lineColor || 'steelblue' }, name: stem };
     const layout = {
       title: stem,
       xaxis: { title: 'Time (ns)', showgrid: showGrid },
@@ -996,11 +1064,14 @@ if (typeof document !== 'undefined') {
     const intensityLabel = useJac ? 'Intensity (Jacobian Corrected)' : 'Intensity (Smoothed)';
     const plotLabelName = useJac ? 'Jacobian Corrected' : 'Smoothed';
 
-    // 上段: TOFスペクトル + 検出ピーク
-    const traceTof = { x: t_ns, y: countsSmoothed, type: 'scattergl', mode: 'lines', line: { width: 1, color: 'steelblue' }, name: 'Smoothed' };
+    // 上段: TOFスペクトル + 検出ピーク（この2系列は「⚙ 表示設定」のパレット選択時、パレットの色を順に使う）
+    const { color: lineColor, palette: colorPalette, lineWidth } = getGraphStyle();
+    const tofColor = pickColor(colorPalette, 0, lineColor || 'steelblue');
+    const peakColor = pickColor(colorPalette, 1, 'red');
+    const traceTof = { x: t_ns, y: countsSmoothed, type: 'scattergl', mode: 'lines', line: { width: lineWidth, color: tofColor }, name: 'Smoothed' };
     const tracePeaks = {
       x: peakIdx.map(i => t_ns[i]), y: peakIdx.map(i => countsSmoothed[i]),
-      type: 'scatter', mode: 'markers', marker: { color: 'red', size: 7 }, name: `Peaks (>=${threshold})`,
+      type: 'scatter', mode: 'markers', marker: { color: peakColor, size: 7 }, name: `Peaks (>=${threshold})`,
     };
     const massTofLayout = {
       title: withMeta('TOF Spectrum', stem, smoothWin), xaxis: { title: 'Time (ns)' }, yaxis: { title: 'Counts' }, margin: { t: 40 },
@@ -1052,7 +1123,7 @@ if (typeof document !== 'undefined') {
     setYAxisRange(layout2, yAuto, yMinV, yMaxV, logY);
     applyLegendLayout(layout2);
 
-    Plotly.newPlot('plotMassSpec', [{ x: xMass, y: yMass, type: 'scattergl', mode: 'lines', line: { width: 1, color: 'crimson' }, name: plotLabelName }], layout2, { responsive: true });
+    Plotly.newPlot('plotMassSpec', [{ x: xMass, y: yMass, type: 'scattergl', mode: 'lines', line: { width: lineWidth, color: lineColor || 'crimson' }, name: plotLabelName }], layout2, { responsive: true });
     document.getElementById('plotMassSpec').dataset.filename = `${state.currentDate}_MassSpectrum_${stem}`;
   });
 
@@ -1126,13 +1197,17 @@ if (typeof document !== 'undefined') {
     const yMax = parseFloat(document.getElementById('diffYMax').value);
     const logY = document.getElementById('diffLogY').checked;
 
+    const { color: diffLineColor, palette: diffPalette, lineWidth: diffLineWidth } = getGraphStyle();
+    const diffSigColor = pickColor(diffPalette, 0, diffLineColor || 'steelblue');
+    const diffBgColor = pickColor(diffPalette, 1, 'tomato');
+
     const layoutRaw = { title: withMeta('Raw Data', `Signal: ${sigStem}, BG: ${bgStem}`, window_), xaxis: { title: xlabel }, yaxis: { title: 'Counts' }, margin: { t: 40 } };
     setXAxisRange(layoutRaw, xAuto, xMin, xMax);
     setYAxisRange(layoutRaw, yAuto, yMin, yMax, logY);
     applyLegendLayout(layoutRaw);
     Plotly.newPlot('plotDiffRaw', [
-      { x: sigSeries.fx, y: sigSeries.fy, type: 'scattergl', mode: 'lines', name: `Signal: ${sigStem}`, line: { width: 1, color: 'steelblue' } },
-      { x: bgSeries.fx, y: bgSeries.fy, type: 'scattergl', mode: 'lines', name: `BG: ${bgStem}`, line: { width: 1, color: 'tomato' }, opacity: 0.7 },
+      { x: sigSeries.fx, y: sigSeries.fy, type: 'scattergl', mode: 'lines', name: `Signal: ${sigStem}`, line: { width: diffLineWidth, color: diffSigColor } },
+      { x: bgSeries.fx, y: bgSeries.fy, type: 'scattergl', mode: 'lines', name: `BG: ${bgStem}`, line: { width: diffLineWidth, color: diffBgColor }, opacity: 0.7 },
     ], layoutRaw, { responsive: true });
     document.getElementById('plotDiffRaw').dataset.filename = `${state.currentDate}_Diff_Raw_${sigStem}_vs_${bgStem}`;
 
@@ -1141,7 +1216,7 @@ if (typeof document !== 'undefined') {
     setYAxisRange(layoutDiff, yAuto, yMin, yMax, logY);
     applyLegendLayout(layoutDiff);
     Plotly.newPlot('plotDiffDiff', [
-      { x: diffSeries.fx, y: diffSeries.fy, type: 'scattergl', mode: 'lines', line: { width: 1, color: 'steelblue' }, name: 'diff' },
+      { x: diffSeries.fx, y: diffSeries.fy, type: 'scattergl', mode: 'lines', line: { width: diffLineWidth, color: diffLineColor || 'steelblue' }, name: 'diff' },
     ], layoutDiff, { responsive: true });
     document.getElementById('plotDiffDiff').dataset.filename = `${state.currentDate}_Diff_${sigStem}_minus_${bgStem}`;
 
@@ -1206,6 +1281,8 @@ if (typeof document !== 'undefined') {
     const rawTraces = [];
     const diffTraces = [];
     let globalXMin = Infinity, globalXMax = -Infinity;
+    const { palette: multiPalette, lineWidth: multiLineWidth } = getGraphStyle();
+    let fileColorIdx = 0;
 
     for (const stem of sorted) {
       const entry = state.files[stem];
@@ -1239,15 +1316,22 @@ if (typeof document !== 'undefined') {
         globalXMin = Math.min(globalXMin, Math.min(...dFiltered.fx));
         globalXMax = Math.max(globalXMax, Math.max(...dFiltered.fx));
       }
-      rawTraces.push({ x: sFiltered.fx, y: sFiltered.fy, type: 'scattergl', mode: 'lines', name: labelText, line: { width: 1.2 } });
-      diffTraces.push({ x: dFiltered.fx, y: dFiltered.fy, type: 'scattergl', mode: 'lines', name: labelText, line: { width: 1.2 } });
+      // ファイルごとに異なる色を割り当てる。パレットが「既定」の場合はcolorを指定せず、
+      // これまで通りPlotlyの自動配色に任せる。
+      const fileColor = pickColor(multiPalette, fileColorIdx, undefined);
+      fileColorIdx++;
+      const rawLine = { width: multiLineWidth };
+      const diffLine = { width: multiLineWidth };
+      if (fileColor) { rawLine.color = fileColor; diffLine.color = fileColor; }
+      rawTraces.push({ x: sFiltered.fx, y: sFiltered.fy, type: 'scattergl', mode: 'lines', name: labelText, line: rawLine });
+      diffTraces.push({ x: dFiltered.fx, y: dFiltered.fy, type: 'scattergl', mode: 'lines', name: labelText, line: diffLine });
     }
 
     if (useMass) {
       const bgFiltered = filterByMaskPair(bgMassX, bgCounts, bgMassMask);
-      rawTraces.push({ x: bgFiltered.fx, y: bgFiltered.fy, type: 'scattergl', mode: 'lines', name: `BG: ${bgStem}`, line: { width: 1, color: 'gray', dash: 'dash' }, opacity: 0.6 });
+      rawTraces.push({ x: bgFiltered.fx, y: bgFiltered.fy, type: 'scattergl', mode: 'lines', name: `BG: ${bgStem}`, line: { width: multiLineWidth, color: 'gray', dash: 'dash' }, opacity: 0.6 });
     } else {
-      rawTraces.push({ x: Array.from(bgTime), y: Array.from(bgCounts), type: 'scattergl', mode: 'lines', name: `BG: ${bgStem}`, line: { width: 1, color: 'gray', dash: 'dash' }, opacity: 0.6 });
+      rawTraces.push({ x: Array.from(bgTime), y: Array.from(bgCounts), type: 'scattergl', mode: 'lines', name: `BG: ${bgStem}`, line: { width: multiLineWidth, color: 'gray', dash: 'dash' }, opacity: 0.6 });
     }
 
     const xlabel = useMass ? 'Mass / Charge (u)' : 'Time (ns)';
@@ -1357,8 +1441,12 @@ if (typeof document !== 'undefined') {
     const showGrid = document.getElementById('intGrid').checked;
     const mode = useLine ? 'lines+markers' : 'markers';
 
-    function makeTrace(y, err, name, color, symbol) {
-      const trace = { x: xs, y, type: 'scatter', mode, name, marker: { color, symbol }, line: { color } };
+    // 「⚙ 表示設定」のパレットが選択されていれば既定のblue/orange/greenをその配色に置き換え、
+    // 線の太さも共通設定を反映する。
+    const { palette: intPalette, lineWidth: intLineWidth } = getGraphStyle();
+    function makeTrace(y, err, name, color, symbol, paletteIdx) {
+      const resolvedColor = pickColor(intPalette, paletteIdx, color);
+      const trace = { x: xs, y, type: 'scatter', mode, name, marker: { color: resolvedColor, symbol }, line: { color: resolvedColor, width: intLineWidth } };
       if (showErr) trace.error_y = { type: 'data', array: err, visible: true };
       return trace;
     }
@@ -1374,13 +1462,13 @@ if (typeof document !== 'undefined') {
       return layout;
     };
 
-    Plotly.newPlot('plotInt1', [makeTrace(i1, e1, 'Range 1', 'blue', 'circle')], baseLayout(`Range 1 (${int1Start} - ${int1End} ns)`, 'Integrated Counts'), { responsive: true });
+    Plotly.newPlot('plotInt1', [makeTrace(i1, e1, 'Range 1', 'blue', 'circle', 0)], baseLayout(`Range 1 (${int1Start} - ${int1End} ns)`, 'Integrated Counts'), { responsive: true });
     document.getElementById('plotInt1').dataset.filename = `${state.currentDate}_Integration_Range1_BG_${bgStem}`;
-    Plotly.newPlot('plotInt2', [makeTrace(i2, e2, 'Range 2', 'orange', 'square')], baseLayout(`Range 2 (${int2Start} - ${int2End} ns)`, 'Integrated Counts'), { responsive: true });
+    Plotly.newPlot('plotInt2', [makeTrace(i2, e2, 'Range 2', 'orange', 'square', 0)], baseLayout(`Range 2 (${int2Start} - ${int2End} ns)`, 'Integrated Counts'), { responsive: true });
     document.getElementById('plotInt2').dataset.filename = `${state.currentDate}_Integration_Range2_BG_${bgStem}`;
-    Plotly.newPlot('plotInt3', [makeTrace(i1, e1, 'Range 1', 'blue', 'circle'), makeTrace(i2, e2, 'Range 2', 'orange', 'square')], baseLayout('Simultaneous Plot', 'Integrated Counts'), { responsive: true });
+    Plotly.newPlot('plotInt3', [makeTrace(i1, e1, 'Range 1', 'blue', 'circle', 0), makeTrace(i2, e2, 'Range 2', 'orange', 'square', 1)], baseLayout('Simultaneous Plot', 'Integrated Counts'), { responsive: true });
     document.getElementById('plotInt3').dataset.filename = `${state.currentDate}_Integration_Simultaneous_BG_${bgStem}`;
-    Plotly.newPlot('plotInt4', [makeTrace(ratio, ratioErr, 'Range 1 / Range 2', 'green', 'triangle-up')], baseLayout('Ratio (Range 1 / Range 2)', 'Range 1 / Range 2'), { responsive: true });
+    Plotly.newPlot('plotInt4', [makeTrace(ratio, ratioErr, 'Range 1 / Range 2', 'green', 'triangle-up', 0)], baseLayout('Ratio (Range 1 / Range 2)', 'Range 1 / Range 2'), { responsive: true });
     document.getElementById('plotInt4').dataset.filename = `${state.currentDate}_Integration_Ratio_BG_${bgStem}`;
 
     const tbody = document.getElementById('intResultTableBody');
