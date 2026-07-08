@@ -841,22 +841,46 @@ if (typeof document !== 'undefined') {
     return { w, h };
   }
 
-  // 指定したタブ内の描画済みグラフをまとめてPNGとしてダウンロードする
-  function downloadTabPlots(plotIds) {
-    let any = false;
-    plotIds.forEach(id => {
-      const div = document.getElementById(id);
-      if (div && div.data && div.data.length) {
-        any = true;
-        const filename = sanitizeFilename(div.dataset.filename || id);
-        const opts = { format: 'png', filename };
-        const fullLayout = div._fullLayout;
-        if (fullLayout && fullLayout.width) opts.width = fullLayout.width;
-        if (fullLayout && fullLayout.height) opts.height = fullLayout.height;
-        Plotly.downloadImage(div, opts);
-      }
-    });
-    if (!any) alert('保存できるグラフがありません。先にグラフを表示してください。');
+  // 各グラフ右上のツールバー（モードバー）に表示する「コピー」ボタンのアイコン。
+  // MDI (Material Design Icons) の content-copy と同じ形状（2枚の四角が重なった、
+  // 一般的な「コピー」を表すアイコン）。
+  const COPY_ICON = {
+    width: 24, height: 24,
+    path: 'M19,21H8V7H19M19,5H8A2,2 0 0,0 6,7V21A2,2 0 0,0 8,23H19A2,2 0 0,0 21,21V7A2,2 0 0,0 19,5M16,1H4A2,2 0 0,0 2,3V17H4V3H16V1Z',
+  };
+
+  // グラフ画像をPNGとしてクリップボードにコピーする、モードバー用のカスタムボタン。
+  // 標準のカメラ（ダウンロード）アイコンの隣に表示される。コピーしたPNGはそのまま
+  // Word・PowerPoint・Slackなどに貼り付けて使える。
+  function makeCopyModeBarButton() {
+    return {
+      name: 'copyImage',
+      title: 'グラフをクリップボードにコピー',
+      icon: COPY_ICON,
+      click: async function (gd) {
+        try {
+          const url = await Plotly.toImage(gd, {
+            format: 'png',
+            width: gd._fullLayout.width,
+            height: gd._fullLayout.height,
+          });
+          const blob = await (await fetch(url)).blob();
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        } catch (e) {
+          alert('クリップボードへのコピーに失敗しました。ブラウザでクリップボードへのアクセスが許可されているか確認してください。\n(' + (e && e.message ? e.message : e) + ')');
+        }
+      },
+    };
+  }
+
+  // Plotly.newPlot に渡す共通config。「コピー」ボタンの追加と、カメラ（ダウンロード）
+  // アイコンでPNG保存する際の既定ファイル名をまとめて設定する。
+  function getPlotConfig(filename) {
+    return {
+      responsive: true,
+      modeBarButtonsToAdd: [makeCopyModeBarButton()],
+      toImageButtonOptions: { format: 'png', filename: sanitizeFilename(filename || 'graph') },
+    };
   }
 
   /* ---------- 5. タブ切替 ---------- */
@@ -942,13 +966,6 @@ if (typeof document !== 'undefined') {
   wireAutoToggle('multiXAuto', 'multiXMin', 'multiXMax');
   wireAutoToggle('multiYAuto', 'multiYMin', 'multiYMax');
 
-  /* ---------- 6b. PNG保存ボタン（タブごとに1つ） ---------- */
-  document.getElementById('btnSaveRaw').addEventListener('click', () => downloadTabPlots(['plotRaw']));
-  document.getElementById('btnSaveMass').addEventListener('click', () => downloadTabPlots(['plotMassTof', 'plotMassSpec']));
-  document.getElementById('btnSaveDiff').addEventListener('click', () => downloadTabPlots(['plotDiffRaw', 'plotDiffDiff']));
-  document.getElementById('btnSaveMulti').addEventListener('click', () => downloadTabPlots(['plotMultiRaw', 'plotMultiDiff']));
-  document.getElementById('btnSaveIntegration').addEventListener('click', () => downloadTabPlots(['plotInt1', 'plotInt2', 'plotInt3', 'plotInt4']));
-
   /* ============================================================
      7. タブ1: TOFスペクトル（生データ表示）
      ============================================================ */
@@ -983,8 +1000,9 @@ if (typeof document !== 'undefined') {
     setXAxisRange(layout, xAuto, xMin, xMax);
     setYAxisRange(layout, yAuto, yMin, yMax, logY);
     applyLegendLayout(layout);
-    Plotly.newPlot('plotRaw', [trace], layout, { responsive: true });
-    document.getElementById('plotRaw').dataset.filename = `${state.currentDate}_TOF_${stem}`;
+    const rawFilename = `${state.currentDate}_TOF_${stem}`;
+    Plotly.newPlot('plotRaw', [trace], layout, getPlotConfig(rawFilename));
+    document.getElementById('plotRaw').dataset.filename = rawFilename;
 
     document.getElementById('rawCondText').textContent = showCond ? makeConditionText(cond) : '';
   });
@@ -1077,8 +1095,9 @@ if (typeof document !== 'undefined') {
       title: withMeta('TOF Spectrum', stem, smoothWin), xaxis: { title: 'Time (ns)' }, yaxis: { title: 'Counts' }, margin: { t: 40 },
     };
     applyLegendLayout(massTofLayout);
-    Plotly.newPlot('plotMassTof', [traceTof, tracePeaks], massTofLayout, { responsive: true });
-    document.getElementById('plotMassTof').dataset.filename = `${state.currentDate}_MassCal_TOF_${stem}`;
+    const massTofFilename = `${state.currentDate}_MassCal_TOF_${stem}`;
+    Plotly.newPlot('plotMassTof', [traceTof, tracePeaks], massTofLayout, getPlotConfig(massTofFilename));
+    document.getElementById('plotMassTof').dataset.filename = massTofFilename;
 
     // 下段: 質量スペクトル
     let startIdx = 0;
@@ -1123,8 +1142,9 @@ if (typeof document !== 'undefined') {
     setYAxisRange(layout2, yAuto, yMinV, yMaxV, logY);
     applyLegendLayout(layout2);
 
-    Plotly.newPlot('plotMassSpec', [{ x: xMass, y: yMass, type: 'scattergl', mode: 'lines', line: { width: lineWidth, color: lineColor || 'crimson' }, name: plotLabelName }], layout2, { responsive: true });
-    document.getElementById('plotMassSpec').dataset.filename = `${state.currentDate}_MassSpectrum_${stem}`;
+    const massSpecFilename = `${state.currentDate}_MassSpectrum_${stem}`;
+    Plotly.newPlot('plotMassSpec', [{ x: xMass, y: yMass, type: 'scattergl', mode: 'lines', line: { width: lineWidth, color: lineColor || 'crimson' }, name: plotLabelName }], layout2, getPlotConfig(massSpecFilename));
+    document.getElementById('plotMassSpec').dataset.filename = massSpecFilename;
   });
 
   /* ============================================================
@@ -1205,20 +1225,22 @@ if (typeof document !== 'undefined') {
     setXAxisRange(layoutRaw, xAuto, xMin, xMax);
     setYAxisRange(layoutRaw, yAuto, yMin, yMax, logY);
     applyLegendLayout(layoutRaw);
+    const diffRawFilename = `${state.currentDate}_Diff_Raw_${sigStem}_vs_${bgStem}`;
     Plotly.newPlot('plotDiffRaw', [
       { x: sigSeries.fx, y: sigSeries.fy, type: 'scattergl', mode: 'lines', name: `Signal: ${sigStem}`, line: { width: diffLineWidth, color: diffSigColor } },
       { x: bgSeries.fx, y: bgSeries.fy, type: 'scattergl', mode: 'lines', name: `BG: ${bgStem}`, line: { width: diffLineWidth, color: diffBgColor }, opacity: 0.7 },
-    ], layoutRaw, { responsive: true });
-    document.getElementById('plotDiffRaw').dataset.filename = `${state.currentDate}_Diff_Raw_${sigStem}_vs_${bgStem}`;
+    ], layoutRaw, getPlotConfig(diffRawFilename));
+    document.getElementById('plotDiffRaw').dataset.filename = diffRawFilename;
 
     const layoutDiff = { title: withMeta(`Difference: ${sigStem} − ${bgStem}`, null, window_), xaxis: { title: xlabel }, yaxis: { title: 'Counts (Signal − BG)' }, margin: { t: 40 } };
     setXAxisRange(layoutDiff, xAuto, xMin, xMax);
     setYAxisRange(layoutDiff, yAuto, yMin, yMax, logY);
     applyLegendLayout(layoutDiff);
+    const diffDiffFilename = `${state.currentDate}_Diff_${sigStem}_minus_${bgStem}`;
     Plotly.newPlot('plotDiffDiff', [
       { x: diffSeries.fx, y: diffSeries.fy, type: 'scattergl', mode: 'lines', line: { width: diffLineWidth, color: diffLineColor || 'steelblue' }, name: 'diff' },
-    ], layoutDiff, { responsive: true });
-    document.getElementById('plotDiffDiff').dataset.filename = `${state.currentDate}_Diff_${sigStem}_minus_${bgStem}`;
+    ], layoutDiff, getPlotConfig(diffDiffFilename));
+    document.getElementById('plotDiffDiff').dataset.filename = diffDiffFilename;
 
     const showCond = document.getElementById('diffShowCond').checked;
     const condBox = document.getElementById('diffCondText');
@@ -1356,10 +1378,12 @@ if (typeof document !== 'undefined') {
     applyLegendLayout(layoutRaw);
     applyLegendLayout(layoutDiff);
 
-    Plotly.newPlot('plotMultiRaw', rawTraces, layoutRaw, { responsive: true });
-    document.getElementById('plotMultiRaw').dataset.filename = `${state.currentDate}_Multi_Raw_BG_${bgStem}`;
-    Plotly.newPlot('plotMultiDiff', diffTraces, layoutDiff, { responsive: true });
-    document.getElementById('plotMultiDiff').dataset.filename = `${state.currentDate}_Multi_Diff_BG_${bgStem}`;
+    const multiRawFilename = `${state.currentDate}_Multi_Raw_BG_${bgStem}`;
+    Plotly.newPlot('plotMultiRaw', rawTraces, layoutRaw, getPlotConfig(multiRawFilename));
+    document.getElementById('plotMultiRaw').dataset.filename = multiRawFilename;
+    const multiDiffFilename = `${state.currentDate}_Multi_Diff_BG_${bgStem}`;
+    Plotly.newPlot('plotMultiDiff', diffTraces, layoutDiff, getPlotConfig(multiDiffFilename));
+    document.getElementById('plotMultiDiff').dataset.filename = multiDiffFilename;
   });
 
   /* ============================================================
@@ -1462,14 +1486,18 @@ if (typeof document !== 'undefined') {
       return layout;
     };
 
-    Plotly.newPlot('plotInt1', [makeTrace(i1, e1, 'Range 1', 'blue', 'circle', 0)], baseLayout(`Range 1 (${int1Start} - ${int1End} ns)`, 'Integrated Counts'), { responsive: true });
-    document.getElementById('plotInt1').dataset.filename = `${state.currentDate}_Integration_Range1_BG_${bgStem}`;
-    Plotly.newPlot('plotInt2', [makeTrace(i2, e2, 'Range 2', 'orange', 'square', 0)], baseLayout(`Range 2 (${int2Start} - ${int2End} ns)`, 'Integrated Counts'), { responsive: true });
-    document.getElementById('plotInt2').dataset.filename = `${state.currentDate}_Integration_Range2_BG_${bgStem}`;
-    Plotly.newPlot('plotInt3', [makeTrace(i1, e1, 'Range 1', 'blue', 'circle', 0), makeTrace(i2, e2, 'Range 2', 'orange', 'square', 1)], baseLayout('Simultaneous Plot', 'Integrated Counts'), { responsive: true });
-    document.getElementById('plotInt3').dataset.filename = `${state.currentDate}_Integration_Simultaneous_BG_${bgStem}`;
-    Plotly.newPlot('plotInt4', [makeTrace(ratio, ratioErr, 'Range 1 / Range 2', 'green', 'triangle-up', 0)], baseLayout('Ratio (Range 1 / Range 2)', 'Range 1 / Range 2'), { responsive: true });
-    document.getElementById('plotInt4').dataset.filename = `${state.currentDate}_Integration_Ratio_BG_${bgStem}`;
+    const int1Filename = `${state.currentDate}_Integration_Range1_BG_${bgStem}`;
+    Plotly.newPlot('plotInt1', [makeTrace(i1, e1, 'Range 1', 'blue', 'circle', 0)], baseLayout(`Range 1 (${int1Start} - ${int1End} ns)`, 'Integrated Counts'), getPlotConfig(int1Filename));
+    document.getElementById('plotInt1').dataset.filename = int1Filename;
+    const int2Filename = `${state.currentDate}_Integration_Range2_BG_${bgStem}`;
+    Plotly.newPlot('plotInt2', [makeTrace(i2, e2, 'Range 2', 'orange', 'square', 0)], baseLayout(`Range 2 (${int2Start} - ${int2End} ns)`, 'Integrated Counts'), getPlotConfig(int2Filename));
+    document.getElementById('plotInt2').dataset.filename = int2Filename;
+    const int3Filename = `${state.currentDate}_Integration_Simultaneous_BG_${bgStem}`;
+    Plotly.newPlot('plotInt3', [makeTrace(i1, e1, 'Range 1', 'blue', 'circle', 0), makeTrace(i2, e2, 'Range 2', 'orange', 'square', 1)], baseLayout('Simultaneous Plot', 'Integrated Counts'), getPlotConfig(int3Filename));
+    document.getElementById('plotInt3').dataset.filename = int3Filename;
+    const int4Filename = `${state.currentDate}_Integration_Ratio_BG_${bgStem}`;
+    Plotly.newPlot('plotInt4', [makeTrace(ratio, ratioErr, 'Range 1 / Range 2', 'green', 'triangle-up', 0)], baseLayout('Ratio (Range 1 / Range 2)', 'Range 1 / Range 2'), getPlotConfig(int4Filename));
+    document.getElementById('plotInt4').dataset.filename = int4Filename;
 
     const tbody = document.getElementById('intResultTableBody');
     tbody.innerHTML = '';
