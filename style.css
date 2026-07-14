@@ -369,6 +369,57 @@ main {
   margin-bottom: 8px;
 }
 
+/* 「5. コードを編集する」欄。app.jsの内容をテキストエリアで表示・編集し、
+   下のiframeに編集後のコードでツール全体を再読み込みしてプレビューする。 */
+.code-editor-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.code-editor-toolbar .hint-inline {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-left: 6px;
+}
+.code-editor-toolbar .hint-inline.warn { color: var(--danger); }
+.code-editor {
+  width: 100%;
+  height: 360px;
+  resize: vertical;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  tab-size: 2;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  white-space: pre;
+}
+.code-preview-wrap {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.code-preview-header {
+  background: #f0f2f5;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.code-preview-frame {
+  width: 100%;
+  height: 900px;
+  border: none;
+  display: block;
+  background: #fff;
+}
+
 footer {
   text-align: center;
   color: var(--muted);
